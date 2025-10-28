@@ -1,0 +1,3 @@
+# pipewire-filtertools - Insert a Process into PipeWire as a Filter
+
+A library that provides playback and capture callbacks so an application can act as a filter.

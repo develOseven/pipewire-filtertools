@@ -1,0 +1,36 @@
+
+[project]
+name = "pipewire-filtertools"
+version = "0.1.0"
+authors = [
+  { name="develOseven", email="devel.oseven@gmail.com" },
+]
+description = "PipeWire filter tools C library and Python bindings"
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: POSIX :: Linux",
+]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+
+[build-system]
+requires = [
+  "setuptools>=69",
+  "wheel",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools]
+py-modules = ["_custom_build"]
+
+[tool.setuptools.cmdclass]
+build_py = "_custom_build.build_py"
+bdist_wheel = "_custom_build.bdist_wheel"
+
+[project.urls]
+Homepage = "https://github.com/develOseven/pipewire-filtertools"
+Issues = "https://github.com/develOseven/pipewire-filtertools/issues"
