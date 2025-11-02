@@ -9,7 +9,13 @@ if not _lib_path.exists():
 _lib = ctypes.CDLL(str(_lib_path))
 
 # Function pointer type for buffer callbacks
-PIPEWIRE_FILTERTOOLS_ON_BUFFER = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(ctypes.c_float), ctypes.c_uint32)
+PIPEWIRE_FILTERTOOLS_ON_PROCESS = ctypes.CFUNCTYPE(
+    None,
+    ctypes.c_void_p,
+    ctypes.POINTER(ctypes.c_float),
+    ctypes.POINTER(ctypes.c_float),
+    ctypes.c_uint32
+)
 
 # Bind C functions
 _lib.pfts_init.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
@@ -22,13 +28,17 @@ _lib.pfts_main_loop_new.argtypes = []
 _lib.pfts_main_loop_new.restype = ctypes.c_void_p
 
 _lib.pfts_main_loop_run.argtypes = [
-    ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32,
-    PIPEWIRE_FILTERTOOLS_ON_BUFFER, PIPEWIRE_FILTERTOOLS_ON_BUFFER,
+    ctypes.c_void_p,
+    ctypes.c_void_p,
+    ctypes.c_char_p,
+    ctypes.c_uint32,
+    ctypes.c_uint32,
+    PIPEWIRE_FILTERTOOLS_ON_PROCESS,
 ]
-_lib.pfts_main_loop_run.restype = None
+_lib.pfts_main_loop_run.restype = ctypes.c_int
 
 _lib.pfts_main_loop_quit.argtypes = [ctypes.c_void_p]
-_lib.pfts_main_loop_quit.restype = None
+_lib.pfts_main_loop_quit.restype = ctypes.c_int
 
 _lib.pfts_deinit.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
 _lib.pfts_deinit.restype = None
@@ -47,8 +57,8 @@ def main_loop_new():
     return _lib.pfts_main_loop_new()
 
 
-def main_loop_run(ctx, loop, rate, quantum, on_capture, on_playback):
-    _lib.pfts_main_loop_run(ctx, loop, rate, quantum, on_capture, on_playback)
+def main_loop_run(ctx, loop, name, rate, quantum, on_process):
+    _lib.pfts_main_loop_run(ctx, loop, name, rate, quantum, on_process)
 
 
 def main_loop_quit(loop):

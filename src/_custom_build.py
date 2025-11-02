@@ -12,10 +12,10 @@ class build_py(_build_py):
         dst_dir.mkdir(parents=True, exist_ok=True)
 
         libname = "libpipewire-filtertools.so"
-        c_file = src_dir / "pipewire-filtertools.c"
+        c_files = [src_dir / f for f in ["mainloop.c", "retargeting.c"]]
         libpath = dst_dir / libname
 
-        print(f"Building {libname} from {c_file} -> {libpath}")
+        print(f"Building {libname} from {c_files} -> {libpath}")
 
         # Collect pkg-config flags
         pkg_flags = subprocess.check_output(
@@ -23,7 +23,7 @@ class build_py(_build_py):
             text=True
         ).strip()
 
-        cmd = ["gcc", "-shared", "-fPIC", "-O2", "-o", str(libpath), str(c_file)] + shlex.split(pkg_flags)
+        cmd = ["gcc", "-shared", "-fPIC", "-O2", "-o", str(libpath)] + [str(f) for f in c_files] + shlex.split(pkg_flags)
         subprocess.check_call(cmd)
         print(f"Built {libpath}")
 

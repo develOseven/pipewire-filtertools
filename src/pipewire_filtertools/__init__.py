@@ -1,5 +1,5 @@
 from ._pipewire_filtertools import (
-    PIPEWIRE_FILTERTOOLS_ON_BUFFER,
+    PIPEWIRE_FILTERTOOLS_ON_PROCESS,
     init,
     get_rate,
     main_loop_new,
