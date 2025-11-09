@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <stdatomic.h>
+
 #include <spa/param/audio/format-utils.h>
 
 #include "pipewire-filtertools.h"
@@ -14,6 +16,8 @@ struct pfts_data {
     char *inp_name; /* Input stream */
     char *name;     /* Filter */
     char *src_name; /* Output source */
+
+    atomic_bool auto_link;
 
     uint32_t inp_id;
     uint32_t id;

@@ -21,6 +21,12 @@ void on_node_info(void *data, const struct pw_node_info *info)
 {
     struct pfts_node_data *d = data;
 
+    if (!d->data->auto_link) {
+        return;
+    }
+
+    // TODO: don't relink already targeted nodes.
+
     const char *name = spa_dict_lookup(info->props, PW_KEY_NODE_NAME);
 
     const char *stream_capture_sink = spa_dict_lookup(info->props, PW_KEY_STREAM_CAPTURE_SINK);

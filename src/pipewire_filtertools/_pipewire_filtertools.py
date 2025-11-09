@@ -31,11 +31,15 @@ _lib.pfts_main_loop_run.argtypes = [
     ctypes.c_void_p,
     ctypes.c_void_p,
     ctypes.c_char_p,
+    ctypes.c_bool,
     ctypes.c_uint32,
     ctypes.c_uint32,
     PIPEWIRE_FILTERTOOLS_ON_PROCESS,
 ]
 _lib.pfts_main_loop_run.restype = ctypes.c_int
+
+_lib.pfts_set_auto_link.argtypes = [ctypes.c_void_p, ctypes.c_bool]
+_lib.pfts_set_auto_link.restype = None
 
 _lib.pfts_main_loop_quit.argtypes = [ctypes.c_void_p]
 _lib.pfts_main_loop_quit.restype = ctypes.c_int
@@ -57,8 +61,12 @@ def main_loop_new():
     return _lib.pfts_main_loop_new()
 
 
-def main_loop_run(ctx, loop, name, rate, quantum, on_process):
-    _lib.pfts_main_loop_run(ctx, loop, name, rate, quantum, on_process)
+def main_loop_run(ctx, loop, name, auto_link, rate, quantum, on_process):
+    _lib.pfts_main_loop_run(ctx, loop, name, auto_link, rate, quantum, on_process)
+
+
+def set_auto_link(loop, auto_link):
+    _lib.pfts_set_auto_link(loop, auto_link)
 
 
 def main_loop_quit(loop):

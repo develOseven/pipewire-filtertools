@@ -4,6 +4,7 @@ from ._pipewire_filtertools import (
     get_rate,
     main_loop_new,
     main_loop_run,
+    set_auto_link,
     main_loop_quit,
     deinit,
 )

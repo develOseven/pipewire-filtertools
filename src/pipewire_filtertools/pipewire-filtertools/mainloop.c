@@ -91,27 +91,30 @@ uint32_t pfts_get_rate()
 
 void *pfts_main_loop_new()
 {
-    return pw_main_loop_new(NULL);
+    struct pfts_data *data = calloc(1, sizeof(struct pfts_data));
+    data->loop = pw_main_loop_new(NULL);
+    return data;
 }
 
 int pfts_main_loop_run(void *ctx,
-                       void *loop,
+                       void *d,
                        const char *name,
+                       bool auto_link,
                        uint32_t rate,
                        uint32_t quantum,
                        pfts_on_process on_process)
 {
     int result = 0;
 
-    struct pfts_data data = {0};
-    data.inp_id = SPA_ID_INVALID;
-    data.id = SPA_ID_INVALID;
-    data.src_id = SPA_ID_INVALID;
-    data.inp_out_port_id = SPA_ID_INVALID;
-    data.in_port_id = SPA_ID_INVALID;
-    data.out_port_id = SPA_ID_INVALID;
-    data.src_in_port_id = SPA_ID_INVALID;
-    data.src_serial = SPA_ID_INVALID;
+    struct pfts_data *data = d;
+    data->inp_id = SPA_ID_INVALID;
+    data->id = SPA_ID_INVALID;
+    data->src_id = SPA_ID_INVALID;
+    data->inp_out_port_id = SPA_ID_INVALID;
+    data->in_port_id = SPA_ID_INVALID;
+    data->out_port_id = SPA_ID_INVALID;
+    data->src_in_port_id = SPA_ID_INVALID;
+    data->src_serial = SPA_ID_INVALID;
 
     struct pw_context *context = NULL;
     struct pw_core *core = NULL;
@@ -120,39 +123,40 @@ int pfts_main_loop_run(void *ctx,
     struct pw_proxy *proxy_stream_output_sink = NULL;
     struct pw_proxy *proxy_stream_input_source = NULL;
 
-    data.user_ctx = ctx;
-    data.on_process_cb = on_process;
+    data->user_ctx = ctx;
+    data->on_process_cb = on_process;
 
-    data.loop = loop;
 
     const uint32_t channels = 1;
     char rate_str[16], latency_str[16];
     snprintf(rate_str, sizeof(rate_str), "1/%u", rate);
     snprintf(latency_str, sizeof(latency_str), "%u/%u", quantum, rate);
 
-    pw_loop_add_signal(pw_main_loop_get_loop(loop), SIGINT, do_quit, &data);
-    pw_loop_add_signal(pw_main_loop_get_loop(loop), SIGTERM, do_quit, &data);
+    pw_loop_add_signal(pw_main_loop_get_loop(data->loop), SIGINT, do_quit, data);
+    pw_loop_add_signal(pw_main_loop_get_loop(data->loop), SIGTERM, do_quit, data);
 
-    data.name = strdup(name);
-    if (!data.name) {
+    data->name = strdup(name);
+    if (!data->name) {
         goto fail;
     }
 
-    data.inp_name = malloc(strlen(name) + strlen("_inp") + 1);
-    if (!data.inp_name) {
+    data->inp_name = malloc(strlen(name) + strlen("_inp") + 1);
+    if (!data->inp_name) {
         goto fail;
     }
-    memcpy(data.inp_name, name, strlen(name));
-    memcpy(data.inp_name + strlen(name), "_inp", strlen("_inp") + 1);
+    memcpy(data->inp_name, name, strlen(name));
+    memcpy(data->inp_name + strlen(name), "_inp", strlen("_inp") + 1);
 
-    data.src_name = malloc(strlen(name) + strlen("_src") + 1);
-    if (!data.src_name) {
+    data->src_name = malloc(strlen(name) + strlen("_src") + 1);
+    if (!data->src_name) {
         goto fail;
     }
-    memcpy(data.src_name, name, strlen(name));
-    memcpy(data.src_name + strlen(name), "_src", strlen("_src") + 1);
+    memcpy(data->src_name, name, strlen(name));
+    memcpy(data->src_name + strlen(name), "_src", strlen("_src") + 1);
 
-    context = pw_context_new(pw_main_loop_get_loop(loop), NULL, 0);
+    data->auto_link = auto_link;
+
+    context = pw_context_new(pw_main_loop_get_loop(data->loop), NULL, 0);
     if (!context) {
         goto fail;
     }
@@ -161,16 +165,16 @@ int pfts_main_loop_run(void *ctx,
     if (!core) {
         goto fail;
     }
-    data.core = core;
+    data->core = core;
 
-    result = setup_retargeting(&data, core);
+    result = setup_retargeting(data, core);
     if (result < 0) {
         goto fail;
     }
 
     /* Create filter */
-    data.filter = pw_filter_new_simple(
-        pw_main_loop_get_loop(loop),
+    data->filter = pw_filter_new_simple(
+        pw_main_loop_get_loop(data->loop),
         "pipewire-filtertools",
         pw_properties_new(
             PW_KEY_NODE_NAME, name,
@@ -184,14 +188,14 @@ int pfts_main_loop_run(void *ctx,
             PW_KEY_NODE_LOCK_QUANTUM, "true",
             NULL),
         &filter_events,
-        &data);
+        data);
 
-    if (!data.filter) {
+    if (!data->filter) {
         goto fail;
     }
 
     /* Create input port */
-    data.in_port = pw_filter_add_port(data.filter,
+    data->in_port = pw_filter_add_port(data->filter,
         PW_DIRECTION_INPUT,
         PW_FILTER_PORT_FLAG_MAP_BUFFERS,
         sizeof(struct pfts_port),
@@ -201,14 +205,14 @@ int pfts_main_loop_run(void *ctx,
             NULL),
         NULL, 0);
 
-    if (!data.in_port) {
+    if (!data->in_port) {
         goto fail;
     }
 
-    data.in_port->data = &data;
+    data->in_port->data = data;
 
     /* Create output port */
-    data.out_port = pw_filter_add_port(data.filter,
+    data->out_port = pw_filter_add_port(data->filter,
         PW_DIRECTION_OUTPUT,
         PW_FILTER_PORT_FLAG_MAP_BUFFERS,
         sizeof(struct pfts_port),
@@ -218,11 +222,11 @@ int pfts_main_loop_run(void *ctx,
             NULL),
         NULL, 0);
 
-    if (!data.out_port) {
+    if (!data->out_port) {
         goto fail;
     }
 
-    data.out_port->data = &data;
+    data->out_port->data = data;
 
     uint8_t buf[1024];
     struct spa_pod_builder b = SPA_POD_BUILDER_INIT(buf, sizeof(buf));
@@ -233,7 +237,7 @@ int pfts_main_loop_run(void *ctx,
                             .ns = 10 * SPA_NSEC_PER_MSEC
                     ));
 
-    result = pw_filter_connect(data.filter,
+    result = pw_filter_connect(data->filter,
                                PW_FILTER_FLAG_RT_PROCESS,
                                params,
                                1);
@@ -249,7 +253,7 @@ int pfts_main_loop_run(void *ctx,
         goto fail;
     }
 
-    pw_properties_set(props_sink, PW_KEY_NODE_NAME, data.inp_name);
+    pw_properties_set(props_sink, PW_KEY_NODE_NAME, data->inp_name);
     pw_properties_set(props_sink, PW_KEY_NODE_VIRTUAL, "true");
     pw_properties_set(props_sink, "factory.name", "support.null-audio-sink");
     pw_properties_set(props_sink, PW_KEY_MEDIA_CLASS, "Stream/Input/Audio");
@@ -272,7 +276,7 @@ int pfts_main_loop_run(void *ctx,
         goto fail;
     }
 
-    pw_properties_set(props_source, PW_KEY_NODE_NAME, data.src_name);
+    pw_properties_set(props_source, PW_KEY_NODE_NAME, data->src_name);
     pw_properties_set(props_source, PW_KEY_NODE_VIRTUAL, "true");
     pw_properties_set(props_source, "factory.name", "support.null-audio-sink");
     pw_properties_set(props_source, PW_KEY_MEDIA_CLASS, "Audio/Source/Virtual");
@@ -289,7 +293,7 @@ int pfts_main_loop_run(void *ctx,
     pw_properties_free(props_source);
     props_source = NULL;
 
-    result = pw_main_loop_run(data.loop);
+    result = pw_main_loop_run(data->loop);
 
     goto success;
 fail:
@@ -299,22 +303,29 @@ success:
     pw_properties_free(props_source);
     if (proxy_stream_output_sink) { pw_proxy_destroy(proxy_stream_output_sink); }
     if (proxy_stream_input_source) { pw_proxy_destroy(proxy_stream_input_source); }
-    if (data.inp_link) { pw_proxy_destroy(data.inp_link); }
-    if (data.src_link) { pw_proxy_destroy(data.src_link); }
-    if (data.filter) { pw_filter_destroy(data.filter); }
+    if (data->inp_link) { pw_proxy_destroy(data->inp_link); }
+    if (data->src_link) { pw_proxy_destroy(data->src_link); }
+    if (data->filter) { pw_filter_destroy(data->filter); }
     if (core) { pw_core_disconnect(core); }
     if (context) { pw_context_destroy(context); }
-    pw_main_loop_destroy(data.loop);
-    free(data.inp_name);
-    free(data.name);
-    free(data.src_name);
+    pw_main_loop_destroy(data->loop);
+    free(data->inp_name);
+    free(data->name);
+    free(data->src_name);
 
     return result;
 }
 
-int pfts_main_loop_quit(void *loop)
+void pfts_set_auto_link(void *d, bool auto_link)
 {
-    pw_main_loop_quit((struct pw_main_loop *)loop);
+    struct pfts_data *data = d;
+    data->auto_link = auto_link;
+}
+
+int pfts_main_loop_quit(void *d)
+{
+    struct pfts_data *data = d;
+    pw_main_loop_quit(data->loop);
 }
 
 void pfts_deinit()
