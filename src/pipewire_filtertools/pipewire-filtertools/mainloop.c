@@ -325,7 +325,13 @@ void pfts_set_auto_link(void *d, bool auto_link)
 int pfts_main_loop_quit(void *d)
 {
     struct pfts_data *data = d;
-    pw_main_loop_quit(data->loop);
+    return pw_main_loop_quit(data->loop);
+}
+
+void pfts_main_loop_destroy(void *d)
+{
+    /* pw_main_loop_destroy was called in the loop thread */
+    free(d);
 }
 
 void pfts_deinit()

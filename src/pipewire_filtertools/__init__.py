@@ -6,5 +6,6 @@ from ._pipewire_filtertools import (
     main_loop_run,
     set_auto_link,
     main_loop_quit,
+    main_loop_destroy,
     deinit,
 )

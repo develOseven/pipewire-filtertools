@@ -44,6 +44,9 @@ _lib.pfts_set_auto_link.restype = None
 _lib.pfts_main_loop_quit.argtypes = [ctypes.c_void_p]
 _lib.pfts_main_loop_quit.restype = ctypes.c_int
 
+_lib.pfts_main_loop_destroy.argtypes = [ctypes.c_void_p]
+_lib.pfts_main_loop_destroy.restype = None
+
 _lib.pfts_deinit.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
 _lib.pfts_deinit.restype = None
 
@@ -70,7 +73,11 @@ def set_auto_link(loop, auto_link):
 
 
 def main_loop_quit(loop):
-    _lib.pfts_main_loop_quit(loop)
+    return _lib.pfts_main_loop_quit(loop)
+
+
+def main_loop_destroy(loop):
+    _lib.pfts_main_loop_destroy(loop)
 
 
 def deinit():

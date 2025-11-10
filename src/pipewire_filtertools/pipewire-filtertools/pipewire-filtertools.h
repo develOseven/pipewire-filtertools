@@ -21,4 +21,5 @@ int pfts_main_loop_run(void *ctx,
                        const uint32_t quantum,
                        pfts_on_process on_processs);
 int pfts_main_loop_quit(void *loop);
+void pfts_main_loop_destroy(void *loop);
 void pfts_deinit();
