@@ -1,7 +1,7 @@
 
 [project]
 name = "pipewire-filtertools"
-version = "0.2.0"
+version = "0.3.0"
 authors = [
   { name="develOseven", email="devel.oseven@gmail.com" },
 ]
