@@ -115,6 +115,7 @@ int pfts_main_loop_run(void *ctx,
     data->out_port_id = SPA_ID_INVALID;
     data->src_in_port_id = SPA_ID_INVALID;
     data->src_serial = SPA_ID_INVALID;
+    data->default_src_serial = SPA_ID_INVALID;
 
     struct pw_context *context = NULL;
     struct pw_core *core = NULL;
@@ -312,6 +313,7 @@ success:
     free(data->inp_name);
     free(data->name);
     free(data->src_name);
+    free(data->default_src_name);
 
     return result;
 }

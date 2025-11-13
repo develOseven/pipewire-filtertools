@@ -3,6 +3,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <spa/utils/hook.h>
+#include <spa/utils/json.h>
+
 #include <pipewire/extensions/metadata.h>
 #include <pipewire/pipewire.h>
 
@@ -15,6 +18,8 @@ struct pfts_node_data {
 
     struct spa_hook proxy_listener;
     struct spa_hook object_listener;
+
+    char *target_object;
 };
 
 void on_node_info(void *data, const struct pw_node_info *info)
@@ -25,14 +30,34 @@ void on_node_info(void *data, const struct pw_node_info *info)
         return;
     }
 
-    // TODO: don't relink already targeted nodes.
+    if (d->target_object) {
+        /* Do retarget only once. */
+        return;
+    }
 
     const char *name = spa_dict_lookup(info->props, PW_KEY_NODE_NAME);
-
-    const char *stream_capture_sink = spa_dict_lookup(info->props, PW_KEY_STREAM_CAPTURE_SINK);
-
     const char *target_object = spa_dict_lookup(info->props,
                                                 PW_KEY_TARGET_OBJECT);
+
+    uint64_t target_object_serial = SPA_ID_INVALID;
+    if (spa_atou64(target_object, &target_object_serial, 0)) {
+
+        if (target_object_serial != SPA_ID_INVALID &&
+            target_object_serial != d->data->default_src_serial &&
+            target_object_serial != d->data->src_serial) {
+                /* It is set up to record from some other specific
+                   device that is not the default device, so no relink. */
+                d->target_object = strdup(target_object);
+                return;
+        }
+    } else if (target_object &&
+               !spa_streq(target_object, d->data->default_src_name) &&
+               !spa_streq(target_object, d->data->src_name)) {
+        /* It is set up to record from some other specific
+           device that is not the default device, so no relink. */
+        d->target_object = strdup(target_object);
+        return;
+    }
 
     if (d->data->src_serial == SPA_ID_INVALID) {
         fprintf(stderr, "[pfts] error src serial\n");
@@ -48,6 +73,14 @@ void on_node_info(void *data, const struct pw_node_info *info)
         return;
     }
 
+    if (target_object) {
+        fprintf(stderr,
+                "[pfts] retargeting %s[%"PRIu32"] from %s\n",
+                name ? name : "",
+                info->id,
+                target_object);
+    }
+
     pw_metadata_set_property(d->data->metadata,
                              info->id,
                              "target.node",
@@ -59,6 +92,8 @@ void on_node_info(void *data, const struct pw_node_info *info)
                              "target.object",
                              "Spa:Id",
                              src_serial_str);
+
+    d->target_object = strdup(d->data->src_name);
 }
 
 static const struct pw_node_events node_events = {
@@ -69,6 +104,8 @@ static void on_node_proxy_destroy(void *data) {
     struct pfts_node_data *d = data;
     spa_hook_remove(&d->proxy_listener);
     d->proxy = NULL;
+    free(d->target_object);
+    d->target_object = NULL;
 }
 
 static void on_node_proxy_removed(void *data) {
@@ -110,6 +147,18 @@ static void on_node(struct pfts_data *ctx_data,
             }
             return;
         }
+        if (ctx_data->default_src_name &&
+            strcmp(name, ctx_data->default_src_name) == 0) {
+
+            uint64_t serial = SPA_ID_INVALID;
+            if (spa_atou64(spa_dict_lookup(props,
+                                           PW_KEY_OBJECT_SERIAL),
+                           &serial,
+                           0)) {
+                ctx_data->default_src_serial = serial;
+            }
+            return;
+        }
     }
 
     const char *media_class = spa_dict_lookup(props, PW_KEY_MEDIA_CLASS);
@@ -125,6 +174,7 @@ static void on_node(struct pfts_data *ctx_data,
     struct pfts_node_data *d = pw_proxy_get_user_data(proxy);
     d->data = ctx_data;
     d->proxy = proxy;
+    d->target_object = NULL;
 
     pw_proxy_add_object_listener(proxy, &d->object_listener, &node_events, d);
     pw_proxy_add_listener(proxy, &d->proxy_listener, &node_proxy_events, d);
@@ -172,7 +222,6 @@ static struct pw_proxy* link_ports(struct pw_core *core,
                                    uint32_t input_node_id,
                                    uint32_t input_node_port_id)
 {
-    fprintf(stderr, "linking %u %u %u %u\n", output_node_id, output_node_port_id,input_node_id, input_node_port_id );
     struct pw_proxy *proxy = NULL;
 
     struct pw_properties* props = pw_properties_new(NULL, NULL);
@@ -269,6 +318,50 @@ static void on_port(struct pfts_data *ctx_data,
     }
 }
 
+static int on_metadata_property(void *data,
+                                uint32_t id,
+                                const char *key,
+                                const char *type,
+                                const char *value)
+{
+    struct pfts_data *ctx_data = data;
+
+    if (key && value && strcmp(key, "default.audio.source") == 0) {
+        struct spa_json it[2];
+        const char *name = NULL;
+
+        spa_json_init(&it[0], value, strlen(value));
+
+        if (spa_json_enter_object(&it[0], &it[1]) > 0) {
+            char subkey[1024];
+            char subvalue[1024];
+
+            while (spa_json_get_string(&it[1], subkey, sizeof(subkey)) > 0) {
+                if (spa_json_get_string(&it[1], subvalue, sizeof(subvalue)) <= 0)
+                    continue;
+
+                if (spa_streq(subkey, "name")) {
+                    name = subvalue;
+                    break;
+                }
+            }
+        }
+
+        if (name) {
+            if (ctx_data->default_src_name) {
+                free(ctx_data->default_src_name);
+            }
+            ctx_data->default_src_name = strdup(name);
+        }
+    }
+
+    return 0;
+}
+
+static const struct pw_metadata_events metadata_events = {
+    .property = on_metadata_property,
+};
+
 static void on_metadata(struct pfts_data *ctx_data,
                         uint32_t id,
                         const char *type,
@@ -285,6 +378,18 @@ static void on_metadata(struct pfts_data *ctx_data,
                                           type,
                                           PW_VERSION_METADATA,
                                           0);
+
+    if (ctx_data->metadata) {
+        int result = pw_metadata_add_listener(ctx_data->metadata,
+                                              &ctx_data->metadata_listener,
+                                              &metadata_events,
+                                              ctx_data);
+        if (result < 0) {
+            fprintf(stderr, "[pfts] error metadata listener\n");
+        }
+    } else {
+        fprintf(stderr, "[pfts] error metadata binding\n");
+    }
 }
 
 static void on_registry_global(void *data,

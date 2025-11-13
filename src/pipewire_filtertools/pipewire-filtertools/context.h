@@ -33,6 +33,9 @@ struct pfts_data {
 
     uint64_t src_serial; /* Source's serial for other streams to target */
 
+    char *default_src_name; /* Name of the current default source. */
+    uint64_t default_src_serial; /* Serial of the current default source. */
+
     struct pw_main_loop *loop;
     struct pw_filter *filter;
     struct pfts_port *in_port;
